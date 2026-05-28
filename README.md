@@ -31,7 +31,7 @@ A modern and interactive **Campus Utility Hub** built using **HTML, CSS, and Jav
 
 ## 📸 Project Preview
 
-<img width="100%" alt="Campus Utility Hub Banner" src="https://user-images.githubusercontent.com/placeholder/banner.png">
+<img width="100%" alt="Campus Utility Hub Banner" src="campus_hub.png">
 
 ---
 
