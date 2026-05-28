@@ -757,8 +757,10 @@ grid-template-columns:1fr;
 <input type="text" id="studentName" placeholder="Enter student name">
 </div>
 <div>
-<label>Subject/Class</label>
-<input type="text" id="studentClass" placeholder="e.g., DSA, Web Dev">
+<label>Subject</label>
+<select id="studentClass">
+<option value="">-- Select Subject --</option>
+</select>
 </div>
 </div>
 
@@ -799,9 +801,23 @@ grid-template-columns:1fr;
 <!-- CGPA -->
 <section id="cgpa" class="card hidden">
 <h1>CGPA Calculator</h1>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:15px;">
+<div>
+<label>Student Name</label>
+<input type="text" id="studentNameInput" placeholder="Enter student name">
+</div>
+<div>
+<label>Semester / Term</label>
+<input type="text" id="semesterInput" placeholder="e.g., 5th Semester">
+</div>
+</div>
+<div style="margin-bottom:15px;padding:15px;background:#fafafa;border-radius:10px;border:1px solid #ddd;">
+<h3 style="margin:0 0 10px 0;">Subject-wise Performance</h3>
 <div id="subjectContainer"></div>
+</div>
 <button id="addSubjectBtn">Add Subject</button>
 <button id="calculateCgpaBtn">Calculate SGPA</button>
+<div id="studentSummary" style="margin-top:15px;"></div>
 <h2 id="cgpaResult"></h2>
 </section>
 
@@ -863,9 +879,30 @@ grid-template-columns:1fr;
 <!-- Expense -->
 <section id="expense" class="card hidden">
 <h1>Expense Splitter</h1>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+<div>
+<label>Payer</label>
 <input type="text" id="personName" placeholder="Person Name">
-<input type="number" id="expenseAmount" placeholder="Expense Amount">
+</div>
+<div>
+<label>Paid By</label>
 <input type="text" id="paidBy" placeholder="Paid By">
+</div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+<div>
+<label>Amount</label>
+<input type="number" id="expenseAmount" placeholder="Expense Amount">
+</div>
+<div>
+<label>Participants (comma separated)</label>
+<input type="text" id="participantsInput" placeholder="Rishi, Aman, Priya">
+</div>
+</div>
+<div style="margin-bottom:10px;">
+<label>Expense Category</label>
+<input type="text" id="expenseCategory" placeholder="Food, Travel, Books">
+</div>
 <button id="addExpenseBtn">Add Expense</button>
 <button id="calculateExpenseBtn">Calculate Split</button>
 <div id="expenseOutput"></div>
@@ -915,6 +952,8 @@ let attendanceData=[];
 let expenses=[];
 let quizAnswers=[];
 
+renderExpenseLedger();
+
 function highlightBtn(btn){
 document.querySelectorAll('.sidebar button').forEach(b => b.classList.remove('active'));
 btn.classList.add('active');
@@ -937,16 +976,69 @@ document.body.classList.toggle('dark-mode');
 
 // ===================== ADVANCED ATTENDANCE SYSTEM =====================
 
-function attendancePercentage(){
-if(attendanceData.length === 0) return 0;
-const presentDays = attendanceData.filter(a => a.status === 'Present' || a.status === 'Late').length;
-return Math.round((presentDays / attendanceData.length) * 100);
+const defaultSubjects = [
+'Web Development',
+'Data Structures',
+'Database Management',
+'Mathematics',
+'Operating Systems',
+'Networking',
+'Python Programming'
+];
+
+const attendanceSubjectSelect = document.getElementById('studentClass');
+
+defaultSubjects.forEach(subject => {
+const option = document.createElement('option');
+option.value = subject;
+option.textContent = subject;
+attendanceSubjectSelect.appendChild(option);
+});
+
+attendanceSubjectSelect.value = defaultSubjects[0];
+renderAttendance();
+updateAttendanceStats();
+
+attendanceSubjectSelect.addEventListener('change', () => {
+renderAttendance();
+updateAttendanceStats();
+});
+
+function normalizeAttendanceKey(name, className, date){
+return `${name.trim().toLowerCase()}|${className.trim().toLowerCase()}|${date}`;
+}
+
+function studentAttendancePercentage(name, className){
+const studentRecords = attendanceData.filter(record => {
+const sameName = record.name.trim().toLowerCase() === name.trim().toLowerCase();
+const sameClass = record.className.trim().toLowerCase() === className.trim().toLowerCase();
+return sameName && sameClass;
+});
+
+if(studentRecords.length === 0) return 0;
+const presentDays = studentRecords.filter(record => record.status === 'Present' || record.status === 'Late').length;
+return Math.round((presentDays / studentRecords.length) * 100);
+}
+
+function attendancePercentage(classNameFilter = null){
+const filteredRecords = classNameFilter
+? attendanceData.filter(record => record.className === classNameFilter)
+: attendanceData;
+
+if(filteredRecords.length === 0) return 0;
+const presentDays = filteredRecords.filter(record => record.status === 'Present' || record.status === 'Late').length;
+return Math.round((presentDays / filteredRecords.length) * 100);
 }
 
 function updateAttendanceStats(){
-const present = attendanceData.filter(a => a.status === 'Present').length;
-const absent = attendanceData.filter(a => a.status === 'Absent').length;
-const percentage = attendancePercentage();
+const selectedSubject = attendanceSubjectSelect.value;
+const filteredRecords = selectedSubject
+? attendanceData.filter(record => record.className === selectedSubject)
+: attendanceData;
+
+const present = filteredRecords.filter(record => record.status === 'Present' || record.status === 'Late').length;
+const absent = filteredRecords.filter(record => record.status === 'Absent').length;
+const percentage = attendancePercentage(selectedSubject);
 
 document.getElementById('totalPresent').textContent = present;
 document.getElementById('totalAbsent').textContent = absent;
@@ -976,20 +1068,33 @@ alert('Please fill all fields');
 return;
 }
 
+const key = normalizeAttendanceKey(name, className, date);
+const existingIndex = attendanceData.findIndex(record => normalizeAttendanceKey(record.name, record.className, record.date) === key);
+
+if(existingIndex >= 0){
+attendanceData[existingIndex] = {name, className, date, status};
+}else{
 attendanceData.push({name, className, date, status});
+}
+
 renderAttendance();
 updateAttendanceStats();
 document.getElementById('studentName').value = '';
-document.getElementById('studentClass').value = '';
 }
 
 function renderAttendance(){
 const table = document.getElementById('attendanceTable');
 table.innerHTML = '';
 
-attendanceData.forEach((record, index) => {
+const selectedSubject = attendanceSubjectSelect.value;
+const filteredRecords = selectedSubject
+? attendanceData.filter(record => record.className === selectedSubject)
+: attendanceData;
+
+filteredRecords.forEach((record) => {
 const row = document.createElement('tr');
-const percentage = attendancePercentage();
+const percentage = studentAttendancePercentage(record.name, record.className);
+const realIndex = attendanceData.findIndex(item => normalizeAttendanceKey(item.name, item.className, item.date) === normalizeAttendanceKey(record.name, record.className, record.date));
 let statusBadge = '';
 
 if(record.status === 'Present'){
@@ -1008,7 +1113,7 @@ row.innerHTML = `
 <td>${record.date}</td>
 <td>${statusBadge}</td>
 <td>${percentage}%</td>
-<td><button onclick="deleteAttendance(${index})" style="width:auto;padding:5px 10px;background:#ff5252;">Delete</button></td>
+<td><button onclick="deleteAttendance(${realIndex})" style="width:auto;padding:5px 10px;background:#ff5252;">Delete</button></td>
 `;
 table.appendChild(row);
 });
@@ -1021,15 +1126,20 @@ updateAttendanceStats();
 }
 
 function exportAttendance(){
-if(attendanceData.length === 0){
+const selectedSubject = attendanceSubjectSelect.value;
+const filteredRecords = selectedSubject
+? attendanceData.filter(record => record.className === selectedSubject)
+: attendanceData;
+
+if(filteredRecords.length === 0){
 alert('No attendance records to export');
 return;
 }
 
-let csvContent = 'Name,Subject,Date,Status,Overall Percentage\n';
-const percentage = attendancePercentage();
+let csvContent = 'Name,Subject,Date,Status,Student Attendance %\n';
 
-attendanceData.forEach(record => {
+filteredRecords.forEach(record => {
+const percentage = studentAttendancePercentage(record.name, record.className);
 csvContent += `${record.name},${record.className},${record.date},${record.status},${percentage}%\n`;
 });
 
@@ -1191,53 +1301,155 @@ document.getElementById('submitBtn').addEventListener('click', submitQuiz);
 
 // ===================== CGPA =====================
 
+const cgpaDefaultSubjects = [
+'Web Development',
+'Data Structures',
+'Database Management',
+'Mathematics',
+'Operating Systems',
+'Networking',
+'Python Programming'
+];
+
+let studentCGPARecords = [];
+
+const cgpaContainer = document.getElementById('subjectContainer');
+cgpaDefaultSubjects.forEach((subject, index) => {
+const defaultCredits = index === 0 ? 4 : 3;
+const defaultGrade = index === 0 ? 'O' : index === 1 ? 'A+' : 'A';
+cgpaContainer.appendChild(createCgpaRow(subject, defaultCredits, defaultGrade));
+});
+
+renderStudentSummary();
+
+function createCgpaRow(subjectValue = cgpaDefaultSubjects[0], creditsValue = 4, gradeValue = 'A'){
+const row = document.createElement('div');
+row.style.marginBottom = '10px';
+row.style.display = 'grid';
+row.style.gridTemplateColumns = '2fr 1fr 1fr auto';
+row.style.gap = '8px';
+row.style.alignItems = 'center';
+
+const subjectSelect = document.createElement('select');
+subjectSelect.className = 'subjectName';
+subjectSelect.style.padding = '8px';
+subjectSelect.style.borderRadius = '6px';
+cgpaDefaultSubjects.forEach(subject => {
+const option = document.createElement('option');
+option.value = subject;
+option.textContent = subject;
+subjectSelect.appendChild(option);
+});
+subjectSelect.value = subjectValue;
+
+const creditsInput = document.createElement('input');
+creditsInput.type = 'number';
+creditsInput.className = 'credits';
+creditsInput.placeholder = 'Credits';
+creditsInput.min = '1';
+creditsInput.value = creditsValue;
+creditsInput.style.padding = '8px';
+creditsInput.style.borderRadius = '6px';
+
+const gradeSelect = document.createElement('select');
+gradeSelect.className = 'grade';
+gradeSelect.style.padding = '8px';
+gradeSelect.style.borderRadius = '6px';
+['O','A+','A','B+','B','C'].forEach(grade => {
+const option = document.createElement('option');
+option.value = grade;
+option.textContent = grade;
+gradeSelect.appendChild(option);
+});
+gradeSelect.value = gradeValue;
+
+const removeBtn = document.createElement('button');
+removeBtn.textContent = 'Remove';
+removeBtn.type = 'button';
+removeBtn.style.padding = '8px 10px';
+removeBtn.style.borderRadius = '6px';
+removeBtn.style.background = '#ff5252';
+removeBtn.style.color = 'white';
+removeBtn.style.border = 'none';
+removeBtn.onclick = () => row.remove();
+
+row.append(subjectSelect, creditsInput, gradeSelect, removeBtn);
+return row;
+}
+
 function addSubjectField(){
-let container=document.getElementById('subjectContainer');
-let div=document.createElement('div');
-div.innerHTML=`
-<input type="text" class="subjectName" placeholder="Subject Name">
-<input type="number" class="credits" placeholder="Credits">
-<select class="grade">
-<option>O</option>
-<option>A+</option>
-<option>A</option>
-<option>B+</option>
-<option>B</option>
-<option>C</option>
-</select>
-`;
-container.appendChild(div);
+const container = document.getElementById('subjectContainer');
+container.appendChild(createCgpaRow());
 }
 
 function gradePoint(grade){
-if(grade==='O') return 10;
-if(grade==='A+') return 9;
-if(grade==='A') return 8;
-if(grade==='B+') return 7;
-if(grade==='B') return 6;
+if(grade === 'O') return 10;
+if(grade === 'A+') return 9;
+if(grade === 'A') return 8;
+if(grade === 'B+') return 7;
+if(grade === 'B') return 6;
 return 5;
 }
 
-function calculateCGPA(){
-let credits=document.querySelectorAll('.credits');
-let grades=document.querySelectorAll('.grade');
-let totalCredits=0;
-let totalPoints=0;
-
-for(let i=0;i<credits.length;i++){
-let c=Number(credits[i].value);
-let g=gradePoint(grades[i].value);
-totalCredits+=c;
-totalPoints+=c*g;
-}
-
-if(totalCredits === 0){
-alert('Please add subjects with credits');
+function renderStudentSummary(){
+const summaryContainer = document.getElementById('studentSummary');
+if(studentCGPARecords.length === 0){
+summaryContainer.innerHTML = '<p style="margin:0;color:#666;">No student records yet. Calculate SGPA to save a student summary.</p>';
 return;
 }
 
-let sgpa=totalPoints/totalCredits;
-document.getElementById('cgpaResult').innerText='SGPA : '+sgpa.toFixed(2);
+let html = '<div style="background:#f8fafc;border:1px solid #d0e3ff;border-radius:10px;padding:12px;">';
+html += '<h3 style="margin:0 0 10px 0;">Saved Student Summary</h3>';
+html += '<table style="width:100%;border-collapse:collapse;font-size:13px;">';
+html += '<thead><tr style="text-align:left;background:#e8f1ff;"><th style="padding:8px;">Student</th><th style="padding:8px;">Semester</th><th style="padding:8px;">Subjects</th><th style="padding:8px;">SGPA</th></tr></thead><tbody>';
+
+studentCGPARecords.forEach(record => {
+html += `<tr><td style="padding:8px;border-top:1px solid #d6e6ff;">${record.studentName}</td><td style="padding:8px;border-top:1px solid #d6e6ff;">${record.semester}</td><td style="padding:8px;border-top:1px solid #d6e6ff;">${record.subjects.length} subjects</td><td style="padding:8px;border-top:1px solid #d6e6ff;">${record.sgpa.toFixed(2)}</td></tr>`;
+});
+
+html += '</tbody></table></div>';
+summaryContainer.innerHTML = html;
+}
+
+function calculateCGPA(){
+const studentName = document.getElementById('studentNameInput').value.trim();
+const semester = document.getElementById('semesterInput').value.trim() || 'Current Semester';
+const rows = document.querySelectorAll('#subjectContainer .subjectName');
+let totalCredits = 0;
+let totalPoints = 0;
+const subjectBreakdown = [];
+
+if(!studentName){
+alert('Enter a student name');
+return;
+}
+
+rows.forEach((selectEl) => {
+const row = selectEl.closest('div');
+const subject = selectEl.value.trim();
+const credits = Number(row.querySelector('.credits').value);
+const grade = row.querySelector('.grade').value;
+
+if(!subject || !credits){
+return;
+}
+
+const points = gradePoint(grade);
+subjectBreakdown.push({subject, credits, grade, points});
+ totalCredits += credits;
+ totalPoints += credits * points;
+});
+
+if(totalCredits === 0){
+alert('Please add valid subjects with credits');
+return;
+}
+
+const sgpa = totalPoints / totalCredits;
+studentCGPARecords.push({studentName, semester, subjects: subjectBreakdown, sgpa, calculatedAt: new Date().toLocaleDateString()});
+renderStudentSummary();
+
+document.getElementById('cgpaResult').innerText = `${studentName} (${semester}) SGPA: ${sgpa.toFixed(2)}`;
 }
 
 // ===================== CONVERTER =====================
@@ -1330,45 +1542,85 @@ bar.style.width='100%';
 
 // ===================== EXPENSE =====================
 
+function renderExpenseLedger(){
+const expenseOutput = document.getElementById('expenseOutput');
+
+if(expenses.length === 0){
+expenseOutput.innerHTML = '<p style="color:#666;">No expenses added yet. Add an expense to see the split and balances.</p>';
+return;
+}
+
+const balances = {};
+const ledgerRows = expenses.map(expense => {
+const participants = expense.participants.length > 0 ? expense.participants : [expense.payer];
+const split = expense.amount / participants.length;
+participants.forEach(person => {
+balances[person] = (balances[person] || 0) - split;
+});
+balances[expense.payer] = (balances[expense.payer] || 0) + expense.amount;
+return `<tr><td style="padding:8px;border-top:1px solid #ddd;">${expense.category || 'General'}</td><td style="padding:8px;border-top:1px solid #ddd;">${expense.payer}</td><td style="padding:8px;border-top:1px solid #ddd;">₹${expense.amount.toFixed(2)}</td><td style="padding:8px;border-top:1px solid #ddd;">${participants.join(', ')}</td><td style="padding:8px;border-top:1px solid #ddd;">₹${split.toFixed(2)}</td></tr>`;
+}).join('');
+
+const balanceRows = Object.entries(balances).sort((a,b)=>b[1]-a[1]).map(([person, balance]) => {
+const direction = balance >= 0 ? 'Receives' : 'Owes';
+const amount = Math.abs(balance).toFixed(2);
+return `<li style="margin-bottom:8px;padding:8px;background:#f5f5f5;border-radius:6px;">${person}: ${direction} ₹${amount}</li>`;
+}).join('');
+
+expenseOutput.innerHTML = `
+<div style="margin-top:12px;padding:12px;background:#f9fafb;border-radius:10px;border:1px solid #ddd;">
+<h3 style="margin:0 0 10px 0;">Expense Ledger</h3>
+<table style="width:100%;border-collapse:collapse;font-size:13px;">
+<thead><tr style="text-align:left;background:#e8f1ff;"><th style="padding:8px;">Category</th><th style="padding:8px;">Payer</th><th style="padding:8px;">Amount</th><th style="padding:8px;">Participants</th><th style="padding:8px;">Each Share</th></tr></thead>
+<tbody>${ledgerRows}</tbody>
+</table>
+</div>
+<div style="margin-top:12px;padding:12px;background:#fffbe6;border-radius:10px;border:1px solid #ffe58f;">
+<h3 style="margin:0 0 10px 0;">Net Balance Summary</h3>
+<ul style="margin:0;padding-left:18px;">${balanceRows || '<li>No balances to show.</li>'}</ul>
+</div>
+`;
+}
+
 function addExpense(){
-let name=document.getElementById('personName').value;
-let amount=Number(document.getElementById('expenseAmount').value);
-let paidBy=document.getElementById('paidBy').value;
+const name = document.getElementById('personName').value.trim();
+const amount = Number(document.getElementById('expenseAmount').value);
+const paidBy = document.getElementById('paidBy').value.trim();
+const participantsInput = document.getElementById('participantsInput').value.trim();
+const category = document.getElementById('expenseCategory').value.trim() || 'General';
 
 if(!name || !amount || !paidBy){
 alert('Please fill all fields');
 return;
 }
 
-expenses.push({name,amount,paidBy});
+const participants = participantsInput
+? participantsInput.split(',').map(item => item.trim()).filter(Boolean)
+: [name];
+
+if(!participants.includes(name)){
+participants.push(name);
+}
+
+expenses.push({payer:name, amount, paidBy, category, participants, date:new Date().toLocaleDateString()});
 alert('Expense Added');
+
 document.getElementById('personName').value='';
 document.getElementById('expenseAmount').value='';
 document.getElementById('paidBy').value='';
+document.getElementById('participantsInput').value='';
+document.getElementById('expenseCategory').value='';
+
+renderExpenseLedger();
 }
 
 function calculateExpenses(){
-if(expenses.length===0){
+if(expenses.length === 0){
 alert('Add expenses first');
 return;
 }
 
-let total=0;
-for(let i=0;i<expenses.length;i++){
-total+=expenses[i].amount;
-}
-
-let share=total/expenses.length;
-let output=`<h2>Total Expense: ₹${total.toFixed(2)}</h2>`;
-output+=`<h2>Individual Share: ₹${share.toFixed(2)}</h2>`;
-output+='<hr>';
-
-for(let i=0;i<expenses.length;i++){
-let settlement=expenses[i].amount-share;
-output+=`<p>${expenses[i].name} paid ₹${expenses[i].amount} (${settlement>0?'Owes':'Receives'} ₹${Math.abs(settlement).toFixed(2)})</p>`;
-}
-
-document.getElementById('expenseOutput').innerHTML=output;
+renderExpenseLedger();
 }
 
 // ===================== THEME =====================
